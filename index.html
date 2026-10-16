@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>30秒連點大戰 vs AI</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Tone.js for Web Audio Synthesizer Effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            bg: '#0b0f19',
+                            card: '#151c2e',
+                            player: '#00f2fe',
+                            ai: '#ff007f',
+                            accent: '#7928ca',
+                            gold: '#ffd700'
+                        }
+                    },
+                    boxShadow: {
+                        'neon-player': '0 0 25px rgba(0, 242, 254, 0.6), inset 0 0 15px rgba(0, 242, 254, 0.4)',
+                        'neon-ai': '0 0 25px rgba(255, 0, 127, 0.6), inset 0 0 15px rgba(255, 0, 127, 0.4)',
+                        'neon-btn': '0 0 35px rgba(0, 242, 254, 0.8), 0 0 15px rgba(121, 40, 202, 0.8)'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+TC:wght@400;700;900&display=swap');
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #0b0f19;
+            background-image: 
+                radial-gradient(circle at 50% 20%, rgba(121, 40, 202, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 0, 127, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 20% 80%, rgba(0, 242, 254, 0.1) 0%, transparent 40%);
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow-x: hidden;
+        }
+
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* Floating Click Floating Text (+1) Animation */
+        @keyframes floatUpFade {
+            0% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            50% {
+                transform: translate(-50%, -100%) scale(1.4);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -150%) scale(0.8);
+            }
+        }
+
+        .floating-text {
+            position: absolute;
+            pointer-events: none;
+            animation: floatUpFade 0.6s ease-out forwards;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            z-index: 50;
+        }
+
+        /* Button Pulse and Shake Effects */
+        .btn-shake {
+            animation: shake 0.1s ease-in-out;
+        }
+
+        @keyframes shake {
+            0% { transform: scale(0.96) rotate(0deg); }
+            25% { transform: scale(0.96) rotate(-2deg); }
+            75% { transform: scale(0.96) rotate(2deg); }
+            100% { transform: scale(0.96) rotate(0deg); }
+        }
+
+        /* Scanline Overlay for Cyberpunk Vibe */
+        .scanline {
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0, 0, 0, 0.3) 50%,
+                rgba(0, 0, 0, 0.3)
+            );
+            background-size: 100% 4px;
+        }
+
+        /* Progress Bar Animation */
+        .progress-smooth {
+            transition: width 0.1s cubic-bezier(0.1, 0.7, 0.1, 1);
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white flex flex-col justify-between items-center p-3 sm:p-6 relative select-none scanline">
+
+    <!-- Top Navigation Header -->
+    <header class="w-full max-w-2xl flex justify-between items-center z-10 py-2 border-b border-gray-800">
+        <div class="flex items-center gap-2">
+            <i class="fa-solid font-bolt text-cyber-player text-2xl animate-pulse"></i>
+            <h1 class="text-xl sm:text-2xl font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-cyber-player via-purple-400 to-cyber-ai">
+                極速連點 vs AI
+            </h1>
+        </div>
+        <div class="flex items-center gap-4 text-xs sm:text-sm">
+            <!-- Audio Toggle -->
+            <button id="soundToggleBtn" class="p-2 rounded-lg bg-gray-800/80 hover:bg-gray-700 text-gray-300 transition flex items-center gap-1">
+                <i id="soundIcon" class="fa-solid fa-volume-high text-cyber-player"></i>
+                <span id="soundStatus" class="hidden sm:inline">音效開</span>
+            </button>
+            <!-- Personal Best -->
+            <div class="bg-gray-900/90 border border-cyber-gold/30 rounded-lg px-3 py-1 flex items-center gap-2">
+                <i class="fa-solid fa-trophy text-cyber-gold"></i>
+                <div>
+                    <span class="text-gray-400 text-xs block leading-none">最高紀錄</span>
+                    <span id="personalBestText" class="font-orbitron font-bold text-cyber-gold text-sm sm:text-base">0 Clicks</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Game Container -->
+    <main class="w-full max-w-2xl flex-1 flex flex-col justify-around items-center my-4 z-10 gap-4">
+
+        <!-- Countdown Timer HUD -->
+        <div class="relative flex flex-col items-center justify-center">
+            <div class="w-32 h-32 sm:w-40 sm:h-40 rounded-full border-4 border-gray-800 flex flex-col items-center justify-center relative bg-cyber-card/80 shadow-2xl backdrop-blur">
+                <!-- SVG Circular Progress Bar -->
+                <svg class="absolute inset-0 w-full h-full -rotate-90">
+                    <circle cx="50%" cy="50%" r="42%" stroke="currentColor" stroke-width="8" class="text-gray-800" fill="transparent"/>
+                    <circle id="timerCircle" cx="50%" cy="50%" r="42%" stroke="currentColor" stroke-width="8" class="text-cyber-player progress-smooth" fill="transparent" stroke-dasharray="380" stroke-dashoffset="0" stroke-linecap="round"/>
+                </svg>
+                <span id="timerText" class="font-orbitron text-4xl sm:text-5xl font-black text-white tracking-tighter">30.0</span>
+                <span class="text-xs text-gray-400 font-semibold tracking-widest uppercase mt-1">SECONDS</span>
+            </div>
+        </div>
+
+        <!-- VS Progress & Score Board -->
+        <div class="w-full bg-cyber-card/90 border border-gray-800 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur space-y-4">
+            
+            <!-- Player Bar -->
+            <div class="space-y-1">
+                <div class="flex justify-between items-center text-sm font-bold">
+                    <span class="text-cyber-player flex items-center gap-2">
+                        <i class="fa-solid fa-user text-lg"></i> 玩家 (PLAYER)
+                        <span id="comboBadge" class="hidden text-xs bg-cyan-500/20 text-cyber-player border border-cyan-500/50 px-2 py-0.5 rounded-full font-orbitron animate-bounce">
+                            COMBO x<span id="comboCount">0</span>
+                        </span>
+                    </span>
+                    <div class="text-right">
+                        <span id="playerScore" class="font-orbitron text-2xl font-black text-cyber-player">0</span>
+                        <span class="text-gray-400 text-xs ml-1">點擊</span>
+                        <span class="text-gray-500 text-xs border-l border-gray-700 pl-2 ml-2 font-orbitron">
+                            <span id="playerCps">0.0</span> CPS
+                        </span>
+                    </div>
+                </div>
+                <div class="w-full bg-gray-900 rounded-full h-4 p-0.5 border border-cyan-900/50 overflow-hidden">
+                    <div id="playerProgressBar" class="bg-gradient-to-r from-cyan-500 to-cyber-player h-full rounded-full w-0 progress-smooth shadow-[0_0_12px_rgba(0,242,254,0.8)]"></div>
+                </div>
+            </div>
+
+            <!-- VS Divider Banner -->
+            <div class="flex justify-between items-center text-xs text-gray-500 font-orbitron font-bold px-1">
+                <span id="leadStatusText" class="text-gray-400 font-sans font-medium">準備好開始挑戰！</span>
+                <span class="text-purple-400 tracking-widest">VS</span>
+            </div>
+
+            <!-- AI Bar -->
+            <div class="space-y-1">
+                <div class="flex justify-between items-center text-sm font-bold">
+                    <span class="text-cyber-ai flex items-center gap-2">
+                        <i class="fa-solid fa-robot text-lg"></i> AI 電腦 (5 CPS)
+                    </span>
+                    <div class="text-right">
+                        <span id="aiScore" class="font-orbitron text-2xl font-black text-cyber-ai">0</span>
+                        <span class="text-gray-400 text-xs ml-1">點擊</span>
+                        <span class="text-gray-500 text-xs border-l border-gray-700 pl-2 ml-2 font-orbitron">
+                            <span id="aiCps">0.0</span> CPS
+                        </span>
+                    </div>
+                </div>
+                <div class="w-full bg-gray-900 rounded-full h-4 p-0.5 border border-pink-900/50 overflow-hidden">
+                    <div id="aiProgressBar" class="bg-gradient-to-r from-purple-600 to-cyber-ai h-full rounded-full w-0 progress-smooth shadow-[0_0_12px_rgba(255,0,127,0.8)]"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Interactive Click Target Area -->
+        <div class="relative w-full flex justify-center items-center py-2">
+            
+            <!-- Click Button -->
+            <button id="clickBtn" 
+                class="w-56 h-56 sm:w-64 sm:h-64 rounded-full bg-gradient-to-br from-cyan-400 via-cyber-accent to-pink-600 p-1.5 shadow-neon-btn hover:scale-105 active:scale-95 transition-transform duration-100 cursor-pointer relative group flex items-center justify-center">
+                
+                <div class="w-full h-full rounded-full bg-cyber-bg flex flex-col items-center justify-center text-center p-4 border-2 border-cyan-400/30 group-hover:border-cyan-400/80 transition relative overflow-hidden">
+                    <!-- Ripple Overlay Canvas Container -->
+                    <div id="clickContainer" class="absolute inset-0 rounded-full overflow-hidden pointer-events-none"></div>
+
+                    <i class="fa-solid fa-hand-pointer text-4xl sm:text-5xl text-cyber-player mb-2 group-hover:animate-bounce"></i>
+                    <span id="clickBtnText" class="text-2xl sm:text-3xl font-black tracking-wider text-white font-orbitron">
+                        CLICK!
+                    </span>
+                    <span id="clickBtnSubtext" class="text-xs text-cyan-300/80 mt-1 font-medium">
+                        點擊此處開始比賽
+                    </span>
+                </div>
+            </button>
+
+        </div>
+
+    </main>
+
+    <!-- Bottom Instructions Footer -->
+    <footer class="text-center text-gray-500 text-xs z-10 py-2">
+        <p>規則：30秒內累積比 AI (約 5 次/秒) 更多的點擊次數即獲勝！</p>
+    </footer>
+
+    <!-- Post-Game Game Over Modal -->
+    <div id="resultModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-cyber-card border-2 border-cyber-accent/50 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl relative transform transition-all scale-95 opacity-0 duration-300" id="modalCard">
+            
+            <!-- Victory/Defeat Icon -->
+            <div id="modalIconContainer" class="w-20 h-20 mx-auto rounded-full flex items-center justify-center text-4xl mb-4 bg-gray-800">
+                <i id="modalIcon" class="fa-solid fa-trophy text-cyber-gold"></i>
+            </div>
+
+            <!-- Main Result Title -->
+            <h2 id="modalTitle" class="text-3xl font-black mb-1 bg-clip-text text-transparent bg-gradient-to-r from-cyber-player to-cyber-gold">
+                你贏了！
+            </h2>
+            <p id="modalSubtitle" class="text-xl font-bold text-cyber-player mb-6">
+                贏了 AI 25 次點擊
+            </p>
+
+            <!-- Detailed Stats Table -->
+            <div class="bg-gray-900/90 rounded-2xl p-4 border border-gray-800 space-y-3 mb-6 text-sm">
+                
+                <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                    <span class="text-gray-400">玩家總點擊 (Player)</span>
+                    <span id="modalPlayerScore" class="font-orbitron font-bold text-cyber-player text-base">0 次</span>
+                </div>
+
+                <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                    <span class="text-gray-400">AI 總點擊 (Computer)</span>
+                    <span id="modalAiScore" class="font-orbitron font-bold text-cyber-ai text-base">0 次</span>
+                </div>
+
+                <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                    <span class="text-gray-400">玩家平均連點速率</span>
+                    <span id="modalPlayerCps" class="font-orbitron font-bold text-cyan-400">0.0 CPS</span>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">最高 Combo 連擊</span>
+                    <span id="modalMaxCombo" class="font-orbitron font-bold text-purple-400">0 次</span>
+                </div>
+
+            </div>
+
+            <!-- Action Buttons -->
+            <button id="restartBtn" class="w-full py-4 rounded-xl bg-gradient-to-r from-cyber-player via-cyan-500 to-purple-600 font-black text-lg text-gray-950 shadow-neon-player hover:brightness-110 active:scale-95 transition cursor-pointer flex items-center justify-center gap-2">
+                <i class="fa-solid fa-rotate-right"></i> 再戰一局 (PLAY AGAIN)
+            </button>
+
+        </div>
+    </div>
+
+    <!-- Game Logic JavaScript -->
+    <script>
+        // Game Configuration & Parameters
+        const GAME_DURATION = 30; // 30 seconds
+        const AI_BASE_CPS = 5.0;  // Target AI speed (~5 CPS)
+        
+        // Game State Variables
+        let gameState = 'IDLE'; // 'IDLE' | 'PLAYING' | 'FINISHED'
+        let timer = GAME_DURATION;
+        let timerInterval = null;
+        let aiLoopTimeout = null;
+
+        let playerScore = 0;
+        let aiScore = 0;
+        
+        let combo = 0;
+        let maxCombo = 0;
+        let lastClickTime = 0;
+
+        let soundEnabled = true;
+        let personalBest = parseInt(localStorage.getItem('click_game_pb') || '0', 10);
+
+        // Web Audio Synthesizer (Tone.js) Setup
+        let playerSynth, aiSynth, winSynth, loseSynth;
+
+        function initAudio() {
+            try {
+                // Player click sound synthesizer (bright chime)
+                playerSynth = new Tone.Synth({
+                    oscillator: { type: 'sine' },
+                    envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 }
+                }).toDestination();
+                playerSynth.volume.value = -12;
+
+                // AI click sound (soft tick)
+                aiSynth = new Tone.MembraneSynth({
+                    pitchDecay: 0.01,
+                    octaves: 2,
+                    envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.05 }
+                }).toDestination();
+                aiSynth.volume.value = -22;
+
+                // Victory synth
+                winSynth = new Tone.PolySynth().toDestination();
+                winSynth.volume.value = -10;
+
+            } catch (e) {
+                console.warn("Audio Context initialization failed or delayed.", e);
+            }
+        }
+
+        // Play Tone Functions
+        function playPlayerClickSound() {
+            if (!soundEnabled || !playerSynth) return;
+            try {
+                // Pitch rises slightly with combo
+                const freq = 400 + Math.min(combo * 15, 600);
+                playerSynth.triggerAttackRelease(freq, '32n');
+            } catch (e) {}
+        }
+
+        function playAiClickSound() {
+            if (!soundEnabled || !aiSynth) return;
+            try {
+                aiSynth.triggerAttackRelease('C2', '32n');
+            } catch (e) {}
+        }
+
+        function playVictorySound() {
+            if (!soundEnabled || !winSynth) return;
+            try {
+                const now = Tone.now();
+                winSynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n", now);
+                winSynth.triggerAttackRelease(["G4", "B4", "D5", "G5"], "4n", now + 0.25);
+            } catch (e) {}
+        }
+
+        // DOM Element References
+        const clickBtn = document.getElementById('clickBtn');
+        const clickBtnText = document.getElementById('clickBtnText');
+        const clickBtnSubtext = document.getElementById('clickBtnSubtext');
+        const clickContainer = document.getElementById('clickContainer');
+
+        const timerText = document.getElementById('timerText');
+        const timerCircle = document.getElementById('timerCircle');
+
+        const playerScoreEl = document.getElementById('playerScore');
+        const playerCpsEl = document.getElementById('playerCps');
+        const playerProgressBar = document.getElementById('playerProgressBar');
+
+        const aiScoreEl = document.getElementById('aiScore');
+        const aiCpsEl = document.getElementById('aiCps');
+        const aiProgressBar = document.getElementById('aiProgressBar');
+
+        const leadStatusText = document.getElementById('leadStatusText');
+        const comboBadge = document.getElementById('comboBadge');
+        const comboCount = document.getElementById('comboCount');
+
+        const personalBestText = document.getElementById('personalBestText');
+        const soundToggleBtn = document.getElementById('soundToggleBtn');
+        const soundIcon = document.getElementById('soundIcon');
+        const soundStatus = document.getElementById('soundStatus');
+
+        // Modal Elements
+        const resultModal = document.getElementById('resultModal');
+        const modalCard = document.getElementById('modalCard');
+        const modalIconContainer = document.getElementById('modalIconContainer');
+        const modalIcon = document.getElementById('modalIcon');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalSubtitle = document.getElementById('modalSubtitle');
+        const modalPlayerScore = document.getElementById('modalPlayerScore');
+        const modalAiScore = document.getElementById('modalAiScore');
+        const modalPlayerCps = document.getElementById('modalPlayerCps');
+        const modalMaxCombo = document.getElementById('modalMaxCombo');
+        const restartBtn = document.getElementById('restartBtn');
+
+        // Initial PB Display
+        personalBestText.textContent = `${personalBest} Clicks`;
+
+        // Sound Toggle Handler
+        soundToggleBtn.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            if (soundEnabled) {
+                soundIcon.className = "fa-solid fa-volume-high text-cyber-player";
+                soundStatus.textContent = "音效開";
+            } else {
+                soundIcon.className = "fa-solid fa-volume-xmark text-gray-500";
+                soundStatus.textContent = "音效關";
+            }
+        });
+
+        // Initialize Game
+        function initGame() {
+            gameState = 'IDLE';
+            timer = GAME_DURATION;
+            playerScore = 0;
+            aiScore = 0;
+            combo = 0;
+            maxCombo = 0;
+
+            timerText.textContent = GAME_DURATION.toFixed(1);
+            updateCircleTimer(1);
+
+            playerScoreEl.textContent = '0';
+            aiScoreEl.textContent = '0';
+            playerCpsEl.textContent = '0.0';
+            aiCpsEl.textContent = '0.0';
+
+            playerProgressBar.style.width = '0%';
+            aiProgressBar.style.width = '0%';
+
+            comboBadge.classList.add('hidden');
+            leadStatusText.textContent = "準備好開始挑戰！";
+            leadStatusText.className = "text-gray-400 font-sans font-medium";
+
+            clickBtnText.textContent = "CLICK!";
+            clickBtnSubtext.textContent = "點擊此處開始比賽";
+
+            if (timerInterval) clearInterval(timerInterval);
+            if (aiLoopTimeout) clearTimeout(aiLoopTimeout);
+        }
+
+        // Start Match
+        function startGame() {
+            if (gameState !== 'IDLE') return;
+
+            // Ensure Audio Context Start
+            if (window.Tone && Tone.context.state !== 'running') {
+                Tone.start();
+            }
+            initAudio();
+
+            gameState = 'PLAYING';
+            clickBtnSubtext.textContent = "全力瘋狂連點！";
+
+            const startTime = Date.now();
+
+            // Game Countdown Loop
+            timerInterval = setInterval(() => {
+                const elapsed = (Date.now() - startTime) / 1000;
+                timer = Math.max(0, GAME_DURATION - elapsed);
+
+                timerText.textContent = timer.toFixed(1);
+                updateCircleTimer(timer / GAME_DURATION);
+
+                // Update Real-time CPS
+                const currentElapsed = Math.max(0.1, elapsed);
+                playerCpsEl.textContent = (playerScore / currentElapsed).toFixed(1);
+                aiCpsEl.textContent = (aiScore / currentElapsed).toFixed(1);
+
+                // Check Time Limit
+                if (timer <= 0) {
+                    endGame();
+                }
+            }, 50);
+
+            // Trigger AI Click Loop
+            scheduleNextAiClick();
+        }
+
+        // Realistic AI Click Engine (Avg ~5 CPS -> 200ms per click with subtle variance)
+        function scheduleNextAiClick() {
+            if (gameState !== 'PLAYING') return;
+
+            // Base interval: 200ms (5 CPS). Add gaussian-like random variation between 180ms - 220ms (4.5 - 5.5 CPS)
+            const variation = (Math.random() - 0.5) * 40; 
+            const nextInterval = 200 + variation; 
+
+            aiLoopTimeout = setTimeout(() => {
+                if (gameState === 'PLAYING') {
+                    aiScore++;
+                    aiScoreEl.textContent = aiScore;
+                    updateProgressBars();
+                    playAiClickSound();
+                    scheduleNextAiClick();
+                }
+            }, nextInterval);
+        }
+
+        // Player Click Handler
+        function handlePlayerClick(e) {
+            if (gameState === 'FINISHED') return;
+
+            if (gameState === 'IDLE') {
+                startGame();
+            }
+
+            // Register Score
+            playerScore++;
+            playerScoreEl.textContent = playerScore;
+
+            // Handle Combo Timing
+            const now = Date.now();
+            if (now - lastClickTime < 300) { // Click within 300ms builds combo
+                combo++;
+            } else {
+                combo = 1;
+            }
+            lastClickTime = now;
+
+            if (combo > maxCombo) maxCombo = combo;
+
+            // Update Combo Display
+            if (combo >= 3) {
+                comboBadge.classList.remove('hidden');
+                comboCount.textContent = combo;
+            } else {
+                comboBadge.classList.add('hidden');
+            }
+
+            // Visual FX
+            createFloatingText(e);
+            triggerButtonEffect();
+            updateProgressBars();
+            playPlayerClickSound();
+        }
+
+        // Event Listener for Click & Touch
+        clickBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            handlePlayerClick(e);
+        });
+
+        clickBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent touch delay & double trigger
+            const touch = e.touches[0];
+            handlePlayerClick(touch);
+        });
+
+        // Floating +1 Particle Effect
+        function createFloatingText(e) {
+            const rect = clickBtn.getBoundingClientRect();
+            const x = e.clientX ? (e.clientX - rect.left) : (rect.width / 2);
+            const y = e.clientY ? (e.clientY - rect.top) : (rect.height / 2);
+
+            const elem = document.createElement('div');
+            elem.className = 'floating-text';
+
+            if (combo >= 10) {
+                elem.classList.add('text-cyber-gold', 'text-2xl');
+                elem.textContent = `+1 🔥`;
+            } else {
+                elem.classList.add('text-cyber-player', 'text-xl');
+                elem.textContent = '+1';
+            }
+
+            elem.style.left = `${x}px`;
+            elem.style.top = `${y}px`;
+
+            clickContainer.appendChild(elem);
+
+            setTimeout(() => {
+                elem.remove();
+            }, 600);
+        }
+
+        // Button Animation Pulse
+        function triggerButtonEffect() {
+            clickBtn.classList.remove('btn-shake');
+            void clickBtn.offsetWidth; // Force Reflow
+            clickBtn.classList.add('btn-shake');
+        }
+
+        // Update Progress Bars & Dynamic Status Text
+        function updateProgressBars() {
+            const maxScore = Math.max(playerScore, aiScore, 150); // Scale bar to highest score
+            
+            const playerPercent = Math.min((playerScore / maxScore) * 100, 100);
+            const aiPercent = Math.min((aiScore / maxScore) * 100, 100);
+
+            playerProgressBar.style.width = `${playerPercent}%`;
+            aiProgressBar.style.width = `${aiPercent}%`;
+
+            const diff = playerScore - aiScore;
+
+            if (diff > 0) {
+                leadStatusText.textContent = `目前領先 AI ${diff} 次！`;
+                leadStatusText.className = "text-cyber-player font-bold font-sans animate-pulse";
+            } else if (diff < 0) {
+                leadStatusText.textContent = `目前落後 AI ${Math.abs(diff)} 次！`;
+                leadStatusText.className = "text-cyber-ai font-bold font-sans";
+            } else {
+                leadStatusText.textContent = "雙方平手！緊張對決中";
+                leadStatusText.className = "text-yellow-400 font-bold font-sans";
+            }
+        }
+
+        // Update SVG Circle Progress
+        function updateCircleTimer(ratio) {
+            const circumference = 380;
+            const offset = circumference - (ratio * circumference);
+            timerCircle.style.strokeDashoffset = offset;
+        }
+
+        // Game Over Handler
+        function endGame() {
+            gameState = 'FINISHED';
+            clearInterval(timerInterval);
+            if (aiLoopTimeout) clearTimeout(aiLoopTimeout);
+
+            timerText.textContent = "0.0";
+            updateCircleTimer(0);
+
+            const finalPlayerCps = (playerScore / GAME_DURATION).toFixed(1);
+            const diff = playerScore - aiScore;
+
+            // Personal Best Check
+            if (playerScore > personalBest) {
+                personalBest = playerScore;
+                localStorage.setItem('click_game_pb', personalBest);
+                personalBestText.textContent = `${personalBest} Clicks`;
+            }
+
+            // Populate Modal
+            modalPlayerScore.textContent = `${playerScore} 次`;
+            modalAiScore.textContent = `${aiScore} 次`;
+            modalPlayerCps.textContent = `${finalPlayerCps} CPS`;
+            modalMaxCombo.textContent = `${maxCombo} 次`;
+
+            if (diff > 0) {
+                // Victory
+                modalIconContainer.className = "w-20 h-20 mx-auto rounded-full flex items-center justify-center text-4xl mb-4 bg-cyan-950/80 border-2 border-cyber-player shadow-[0_0_20px_rgba(0,242,254,0.5)]";
+                modalIcon.className = "fa-solid fa-trophy text-cyber-gold";
+                modalTitle.textContent = "🎉 恭喜獲勝！";
+                modalTitle.className = "text-3xl font-black mb-1 bg-clip-text text-transparent bg-gradient-to-r from-cyber-player to-cyber-gold";
+                modalSubtitle.textContent = `贏了 AI ${diff} 次點擊`;
+                playVictorySound();
+            } else if (diff < 0) {
+                // Defeat
+                modalIconContainer.className = "w-20 h-20 mx-auto rounded-full flex items-center justify-center text-4xl mb-4 bg-pink-950/80 border-2 border-cyber-ai shadow-[0_0_20px_rgba(255,0,127,0.5)]";
+                modalIcon.className = "fa-solid fa-skull-crossbones text-cyber-ai";
+                modalTitle.textContent = "💥 遺憾落敗！";
+                modalTitle.className = "text-3xl font-black mb-1 bg-clip-text text-transparent bg-gradient-to-r from-cyber-ai to-red-500";
+                modalSubtitle.textContent = `落後 AI ${Math.abs(diff)} 次點擊`;
+            } else {
+                // Tie
+                modalIconContainer.className = "w-20 h-20 mx-auto rounded-full flex items-center justify-center text-4xl mb-4 bg-gray-800 border-2 border-yellow-500";
+                modalIcon.className = "fa-solid fa-handshake text-yellow-400";
+                modalTitle.textContent = "🤝 勢均力敵！";
+                modalTitle.className = "text-3xl font-black mb-1 text-yellow-400";
+                modalSubtitle.textContent = "與 AI 完全平手！";
+            }
+
+            // Show Modal with Animation
+            resultModal.classList.remove('hidden');
+            setTimeout(() => {
+                modalCard.classList.remove('scale-95', 'opacity-0');
+                modalCard.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        // Restart Game Button
+        restartBtn.addEventListener('click', () => {
+            modalCard.classList.remove('scale-100', 'opacity-100');
+            modalCard.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                resultModal.classList.add('hidden');
+                initGame();
+            }, 200);
+        });
+
+        // Initialize on Load
+        window.onload = () => {
+            initGame();
+        };
+    </script>
+</body>
+</html>
